@@ -1,0 +1,258 @@
+--- 
+title: "UNSW ECON2209 Assessment  \n Problem Set 2"
+author: "Name: Kaleb Irawan; Student ID: z5689376"
+output:
+  word_document: default
+font: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE, warning=FALSE, message=FALSE, fig.width = 6.5)
+library(fpp3)
+library(readabs)
+library(plotly)
+```
+
+
+## Task a. Investigating Data Plots
+
+## Solutions 
+
+> + Make a time plot of your data and describe the main features of the series using this one plot.
+
+```{r}
+# Here is the provided code for reading the data from the ABS website:
+myseries <- read_abs_series("A2295636L", release_date = "2025-12-01") %>%
+ mutate (Quarter = yearquarter(date)) %>%
+ as_tsibble (
+   index = Quarter,
+   key = c (series_id)
+   ) %>% 
+ filter_index("2016" ~.)
+
+myseries_plot <- myseries |>
+      autoplot() +
+      labs(
+        title = "Figure 1. Time Series plot of the export price index over time",
+        y = "Price Index",
+        x = "Quarter"
+      ) 
+
+```
+Figure 1 shows the export index of gold recorded at quarterly time intervals from 2016 Q1 to 2025 Q4. The ABS's recorded export price index measures the change in the price of goods exported from Australia. This would imply that while the series directly reflects global gold price movements, we can consider how the series has been shaped by the AUD/USD currency exchange rate.
+
+The gold price index has its significance as a macroeconomic indicator particularly due to it acting simultaneously as a commodity and a currency hedge. We find that gold prices are influenced by a set of global economic conditions like inflation rates and geopolitical tensions. This is evident in the surge from late 2024 which reflects macroeconomic conditions that are getting worse since the near start of 2025. Such conditions include geopolitical uncertainty, tariffs and sanctions policy volatility. Thus, while we consider that the export price index of gold is a reflection of supply and demand for a physical commodity, we find that it serves as a lens through which a period of shifting investor sentiment, monetary policy and geopolitical risk could be examined. (Refer to "Gold Price & Investment Outlook: 2026 & Beyond" for more information).
+
+The plot reveals a clear long run upward trend with the rate of growth increasing as the years go on. We can determine that this sort of increase in the export price index is exponential and not linear which may meddle with the sort of forecasting methods we decide to use later on in this assignment. 
+
+Examining this exponential plot, we will start off with the relatively flat baseline plotted during the early window of this series. During the first three years of the series (2016 Q1 - 2029 Q1), the index has been subdued at levels around 85 - 100. According to a 2017 article published by the Motley Fool, we find that by the end of 2016, gold had been priced at more than $200 an ounce below its mid year highs which was then further weighed down by the Federal Reserve's December rate hike. Then according to a 2018 article published by the World Gold Council, gold volatility in 2017 had reached its lowest since 1996, with one month of moves exceeding 5%. This was driven by uneventful geopolitical situations, improved economic conditions and an ease on the political uncertainty. With equity markets performing strongly and interest rates increasing, the opportunity cost of holding onto gold that time was high which is why the early window is set close to the baseline.
+
+Setting our focus towards the noticeable bump spotted early 2020 to 2021, we find that a peak at the third quarter of 2020 is found between those two years with a price index of precisely 145.7. The period of which the bump was spotted is well-known for the COVID-19 pandemic  which has sparked economic uncertainty globally. As previously discussed, economic and political uncertainty drives the increasing price of gold which appears to be the case here which can be further reinforced by a 2025 article published by 'Econofact' which discusses about the sharp increase in gold prices for Australia during the last few decades. We may also find that the leading cause of the peak during the third quarter of 2020 is likely due to huge fiscal stimulus packages, near zero interest rates and a flight to safe-haven assets all converging during the spring season of 2020.
+
+Then finally, looking at the near-vertical ascent during the recent years (2024 Q1 to be specific). According to an a 2026 article published by FXopen, it quotes that "gold had experienced a remarkable surge in 2024 which reflects the strong geopolitical tensions and economic uncertainty surrounding the US presidential election and strong demand from emerging market central banks. By mid-December 2024, gold prices had climbed more than 30%". As we go on from the beginning of 2024, we find that it only got steeper where "gold demands had risen to 10% in the first 3 quarters of 2025, led by strong investment inflows including from gold-backed ETFs and continued central bank purchases" according to a 2025 article published by World Bank Blogs. This serves to provide a reason for the sharp increase since 2024 and it reveals the deterioration of the macroeconomic conditions that have been showing up in this world lately.
+
+References
+- Caplinger, D. (2017) Why the price of gold in 2016 disappointed precious-metals bulls, The Motley Fool. Available at: https://www.fool.com/investing/2017/01/04/why-the-price-of-gold-in-2016-disappointed-preciou.aspx (Accessed: 19 March 2026). 
+- FXOpen (2026) Analytical gold price forecasts for 2026-2030, Market Pulse. Available at: https://fxopen.com/blog/en/analytical-gold-price-predictions-for-2026-2027-and-beyond/ (Accessed: 19 March 2026). 
+- Gold Price & Investment Outlook: 2026 & beyond (2026) VanEck. Available at: https://www.vaneck.com/us/en/blogs/gold-investing/gold-investing-outlook/ (Accessed: 19 March 2026). 
+- Team, T. (2024) Gold price chart over the past 10 years: Tradingmoon, tradingmoon.com. Available at: https://tradingmoon.com/row/en/blog/commodities-trading/gold-price-chart-over-the-past-10-years/ (Accessed: 19 March 2026). 
+- Temaj, K. and Khadan, J. (2025) When uncertainty rises, gold rallies: Precious Metals Surge to record highs amid global tensions, World Bank Blogs. Available at: https://blogs.worldbank.org/en/opendata/when-uncertainty-rises--gold-rallies (Accessed: 19 March 2026). 
+- Turner, M. (2018) Where has the volatility gone?, World Gold Council. Available at: https://www.gold.org/goldhub/research/gold-investor/gold-investor-july-2018/13228 (Accessed: 19 March 2026).
+
+
+
+> + What Box-Cox transformation, if any, would you select for your data? Explain your decision.
+
+```{r}
+myseries |>
+  features(value, features = guerrero)
+
+myseries |>
+  autoplot(box_cox(value, 0)) +
+  labs(
+    title = "Figure 2. Transformed time series plot of the export price index \n(lambda = 0, determined via visual inspection)",
+    y = "Price index (log transformed)",
+    x = "Quarter"
+  )
+
+myseries |>
+  autoplot(box_cox(value, -0.9)) +
+  labs(
+    title = "Figure 3.Transformed time series plot of the export price index \n(lambda = -0.9, determined via Guerrero's method)",
+    y = "Price index (approx. inverse transformed)",
+    x = "Quarter"
+  )
+  
+
+
+
+```
+[1] Before deciding to transform, we should think about why we would need to transform this plot. Standard forecasting models assume approximately linear or stationary behaviour, and thus proceeding to produce a forecast without transformation would be a wrong step in the direction (we find this transformation needed when variance increases over time in a plot as such). To elaborate on this, it means that the point forecasts would miss an exponential curve as such (given the forecasting models we will be using), prediction intervals would be expected to be far too narrow and the heavy amount of errors would get in the way of crucial accuracy metrics such as RMSE, MASE or MAPE. In other words, forecasts produced on a series that is not transformed is unreliable and should not be used for extracting information or insights. For a case as such, we will go ahead and use a transformation.
+
+##Visual Inspection and judgement only via Figure 1.
+
+[2] Viewing Figure 1, we find that the plot is exponentially increasing as we increase time. We should find that the time interval is incredibly important in determining the transformation method. It helps us determine the variance of the plot and how long this exponential behavior has been occurring; this is important for deciding on our transformation. By visual inspection we can judge that the suitable transformation for such a plot with exponential increase would be the logarithmic transformation, where the lambda parameter is set to 0.
+
+##Post lambda pulling via Guerrero's method and comparison
+
+[3] Viewing Figure 2 and Figure 3, we find that using the Guerrero method provides a lambda that is more fit for linear extrapolation compared to the lambda obtained via visual inspection. Because the transformation is more linear for this plot post transformation via Guerrero's method, it will produce more reliable transformations and solve a lot of the issues that I stated in [1]. Now, comparing to the logarithmic transformation, it produces a trend that is more linear as we can see in Figure 3 that the exponential shape is still maintained from Figure 1. 
+
+##Choice of lambda to use going forward
+
+[4] From [3], although it would seemingly be far better to proceed with the approximate inverse transformation than the log transformation, inverse transformations are not intuitive for fable (a bias adjustment taught outside the course needs to be used to use an inverse transformation). Thus, going forward we will use the log transform since its lambda is the closest value to any kind of inverse values.
+
+
+
+## Task b. Fit and Assess Forecasting Models
+
+Depending on your decision from Task a regarding whether or not to transform your data, use either the untransformed or transformed data for the remainder of this problem set.
+
+## Solutions 
+
+> + Fit the naïve and drift methods to your data, and plot the fitted values on the same figure as your data. Discuss what you find.
+```{r}
+
+myseries_models <- myseries |>
+  model(
+    Naive = NAIVE(box_cox(value, 0)),
+    Drift = RW(box_cox(value, 0) ~ drift())
+  )
+
+models_plot <- myseries_models |>
+  augment() |>
+  autoplot(.fitted) +
+  autolayer(myseries, value) +
+  labs(
+    title = "Figure 4. Naive and Drift fitted values against the Export Price Index",
+    y = "Price Index",
+    x = "Quarter"
+  )
+```
+Let us look at the time series of the fitted values that use both the Naive and Drift models. Notice that these fitted values get plotted one quarter after the actual commence of this series and appear extremely similar. This is because both these models depend on the previous observation to produce a fitted value. The mechanism of the Naive model is that it completely relies on the past value it was given, which is why it essentially replicates the pattern of the actual plot. The mechanism of the Drift model is similar to the Naive model but holds an additional parameter known as the estimated drift; this is added onto the latest observation following.
+
+Now, if we compare both the time series of each fitted value, we find that the Drift plot is slightly higher than the Naive plot. This comes back to the mechanism which I was discussing earlier where I mentioned that there was an additional estimated drift added on top of the previous value. We find that the reason behind the slightly higher Drift value is due to the estimated drift parameter.
+
+We may also want to determine why the Drift method produces a fitted time series closer to the actual time series than the Naive method as a way to determine which method will perform great for forecasts. The drift estimate here serves as an improvement to the Naive method, hence this method was established and this is fairly evident as the Drift method finds itself closer to the actual time series. 
+
+Because of how the Drift method performs compared to Naive and taking into consideration the additional drift estimates, we expect the Drift model to outperform the Naive method. The textbook "Forecasting | Principles and Practice" actually provides a set of plot indications that help us match up plot types with corresponding modelling methods. For Drift in particular, the book states that the Drift method should be used for plots that consist of trend but no seasonality. Now, the Naive model is mainly used for random walks, but here there is a clear exponential increasing trend and thus, without accuracy metrics we can determine that the Drift model will be expected to perform better in forecasts.
+
+
+
+> + Check the residual plots for both models, using `gg_tsresiduals()`. Explain what each plot is showing, and discuss what you find.
+```{r}
+
+myseries_models |>
+  select(Naive) |>
+  gg_tsresiduals() +
+  labs(
+    title = "Figure 5. Portmanteau test results for the Naive Model Residuals"
+  )
+
+myseries_models |>
+  select(Drift) |>
+  gg_tsresiduals() +
+  labs(
+    title = "Figure 6. Portmanteau test results for the Drift Model Residuals"
+  )
+
+```
+Plotting the results of this portmanteau test for Naive and Drift residuals we immediately notice that the shape of each plot isn't that different. However, apart from the autocorrelation function, the series of residuals get scaled on the y-axis and the histogram gets scaled on the x-axis. In other words, the starting point for the series begins on a different y-value in the Drift results compared to the Naive results, and for the histogram, the Drift method covers most of the x-axis than the Naive method (if this is still difficult to understand, compare the time series residuals and the histogram in Figure 5 and 6). Their similar shape is a result of their plots being similar just with the series produced by the Drift method being slightly higher as previously discussed. 
+
+When we usually analyse the portmanteau test results, the ACF plot and the histogram is often sufficient to measure residual behaviours in different models. However, let us go through all the plots before deciding on a new best model given the information we've gained from here.
+
+The time series of residuals show whether the residuals inhibit a pattern or not which is particularly important so that we can tell whether the model has left out information in the fitted plot. Any signs of patterns, cycles or trends indicates that the model hasn't fully captured the structure of the data. Now, we may have some examples where residual time series is hard to interpret like R's provided dataset of electricity demand in Australia. 
+An alternative to the time series is the ACF plot that's in the bottom right corner of the portmanteau test results. The ACF plot serves a similar purpose to the time series plot and it shows whether residuals are correlated with their own past values. Ideally, we would like all the residual spikes to not cross the confidence band (indicated by the blue dotted lines) as this would indicate that past residuals would be able to predict future residuals. In other words, residuals will not be random and this means that information has not been taken into consideration. 
+The histogram determines the quality of the model using normality. Ideally, we would like the histogram to appear bell shaped and centered at zero as this would indicate that residuals are reasonably distributed. Skewness on one side would indicate that residuals are either too negative or too positive; in other words, it indicates that the model is either over-predicting or under-predicting respectively.
+
+Now, given this brief analysis of each panel we can now determine which of the two models perform the best. Both the Naive and Drift models consist of residual series with no white noise, so using the histogram as our basis of comparison, we find that the Naive model does well with managing residuals since it is more narrow. However, the difference is so small that it may not even be worth deciding the better model using this. Rather, let us use the accuracy metrics on the forecast since that will matter more when we examine models for real-world use.
+
+
+
+
+
+## Task c. Forecast
+
+
+
+## Solutions 
+
+> + Using both naïve and drift methods, forecast eight quarters ahead and plot these forecasts together in one figure, along with the original data and the 80% and 95% prediction intervals for both models. Discuss the forecasts and prediction intervals. 
+```{r}
+
+##To be marked
+myseries_fc <- myseries_models |>
+  forecast(h = 8)
+
+myseries_fc |>
+  autoplot(myseries) +
+  labs(
+    title = "Figure 7. Export Price Index over time with Naive and \nDrift model forecasts",
+    y = "Price Index"
+  )
+
+##For studying purposes, I will be operating the following tasks
+#1. Separate the 2 models
+myseries_fc |>
+  filter(.model == "Naive") |>
+  autoplot(myseries) +
+  labs(
+    title = "Figure 7a). Export Price Index over time with Naive model forecasts"
+  )
+
+myseries_fc |>
+  filter(.model == "Drift") |>
+  autoplot(myseries) +
+  labs(
+    title = "Figure 7b). Export Price Index over time with Drift model forecasts"
+  )
+#2. filter out the point forecast for each model
+myseries_fc |>
+  filter(.model == "Naive") |>
+  autoplot(myseries, level = NULL)
+  labs(
+    title = "Figure 7b). Export Price Index over time with Naive model point forecasts"
+  )
+  
+myseries_fc |>
+  filter(.model == "Drift") |>
+  autoplot(myseries, level = NULL)
+  labs(
+    title = "Figure 7b). Export Price Index over time with Drift model point forecasts"
+  )
+
+```
+Before analysing forecasts as such, let's briefly go through the importance of the forecast plot. In a forecast we have the prediction interval and the the point forecast. 
+A plotted prediction interval is an area which helps give an idea of where the next value will be plotted on. As time increases, the prediction interval gets wider and this is mainly because of the uncertainty that grows. Notice that there is a darker coloured interval inside of a lighter coloured interval; the darker colour interval represents the 80% prediction interval and the lighter colour interval represents the 95% prediction interval. A prediction interval is denoted by a percentage which tells us the probability that the incoming value will land.
+A point forecast is a fairly important feature and it tells us about the model's single best guess of the next forecasted value. The point forecast is dependent on the prediction interval as it represents the mean in that area. The mean is also known as the expected value in statistics, so in other words the point forecast is a set of values that is to be expected from the model itself.
+
+(Keep in mind that a log transform was used for this, which got backtransformed here)
+Now looking at Figure 7, we find that the prediction intervals overlap here because we have plotted both together. Thus, for studying purposes, I have included subsections for figure 7. We find that the prediction interval in the Naive model's forecast only grows wider but does not shift these values anywhere else, unlike the Drift model's forecast. This is because of each model's forecasting mechanism which will later be discussed. 
+
+Taking a look into the Drift model's prediction interval, it informs us that the export price index for gold will not decrease marginally. Even if it does, it is to expected to keep increasing. In the 95% interval, we find that the worst case scenario does a small dip before slightly plateauing, so the prediction interval on the Drift model suggests that, given our study in part a), geopolitical uncertainty may not recover any time soon as evident in the way that the export price index of gold is changing. 
+Now, if we compare this with the Naive model's prediction interval, we find a symmetrical prediction interval. This is not as informative as the Drift model's prediction interval because it doesn't assume any trend given the behaviour of the plot. However, it is more prepared for uncertainty than the Drift model's prediction interval and plots an interval that is more safe. We can see that is more safe because if a strange dip occurred, it wouldn't be so surprising for the Naive model compared to the Drift model.
+
+Looking at the point forcasts, we find that the two point forecasts head in different directions. This is purely because we use different models and each model creates point forecasts in different ways. As previously discussed at the second section of part a), the Naive model's estimate is purely dependent on the previous quarter, so the price index remains the same as the last true value recorded on 2025 Q4. However, when we examine the Drift model's point estimate, it increases linearly, and as we remember from out analysis in the second section of part a), the Drift model is the same as the Naive model but has an additional drift estimate. What's different here is that we are now using forecasts, so the drift estimate will multiply as we increase the time interval (recall the Drift method formula in 5.2 of the Textbook).
+
+Given the point forecasts, we find that both forecasts do not expect the plot to decrease any time sooner. In other words, relating back to the importance of gold prices in part a), we had previously found that an increase in geopolitical uncertainty correlates to the increase in gold export prices. The forecasts here tell us that we are not supposed to expect a recovery in macroeconomic conditions.
+
+Under the basis of this context, it is more informative to go with the Drift model but for a less riskier option, the Naive model is better given their prediction intervals. However, since Drift accounts for the majority of the plot in its point forecast compared to the Naive method, it would be more reliable to go with the Drift forecast.
+
+
+
+
+> + At the end of the forecast period, what is the size of gap between the lower and upper 95% prediction interval for both methods. Comment on what you find. 
+
+```{r}
+
+myseries_fc |> 
+  filter_index("2027 Q4") |>
+  hilo(level = 95)
+
+```
+Using the hilo() command, we can obtain the exact 95% prediction interval during 2027 Q4. As previously discussed, a prediction interval of 95% informs us that the next price index has a 95% chance of being within this area. 
+
+Taking a look into the prediction interval, we find that the Naive model's prediction interval is 100 indexes lower than the Drift model's prediction interval upon comparing the lower bound and the higher bounds of each model's prediction interval. 
+Looking into the difference between the higher bound and lower bound for each model's prediction interval, we find that the difference from the Naive model's prediction interval is approximately 255 and the Drift model's prediction interval is approximately 317.
+
+We find that the Drift model's interval is wider than the Naive model's interval which accounts for the amount of uncertainty that the Drift model finds. 
+
