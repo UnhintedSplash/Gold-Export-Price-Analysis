@@ -1,0 +1,546 @@
+--- 
+title: "UNSW ECON2209 Assessment  \n Problem Set 2"
+author: "Name: Kaleb Irawan; Student ID: z5689376"
+output:
+  word_document: default
+font: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE, warning=FALSE, message=FALSE, fig.width = 6.5)
+library(fpp3)
+library(readabs)
+library(plotly)
+library(tidyverse)
+```
+
+
+## Part 1 Investigation: How price in gold has changed over time
+
+```{r}
+# Here is the provided code for reading the data from the ABS website:
+myseries <- read_abs_series("A2295636L", release_date = "2026-03-01") %>%
+ mutate (Quarter = yearquarter(date)) %>%
+ as_tsibble (
+   index = Quarter,
+   key = c (series_id)
+   ) %>% 
+ filter_index("2016" ~.)
+
+gold_series <- myseries |>
+  select(-c("table_no":"table_title","series_type":"unit"))
+
+gold_series |>
+      autoplot() +
+      labs(
+        title = str_wrap("Figure 1. Export Price of Gold over 10 years reveals an exponential-like trend (2016 Q1 - 2025 Q4)", 40),
+        y = "Price Index",
+        x = "Quarter"
+      ) 
+
+```
+Figure 1 shows the export index of gold recorded at quarterly time intervals from 2016 Q1 to 2025 Q4. The ABS's recorded export price index measures the change in the price of goods exported from Australia. This would imply that while the series directly reflects global gold price movements, we can consider how the series has been shaped by the AUD/USD currency exchange rate.
+
+The gold price index has its significance as a macroeconomic indicator particularly due to it acting simultaneously as a commodity and a currency hedge. We find that gold prices are influenced by a set of global economic conditions like inflation rates and geopolitical tensions. This is evident in the surge from late 2024 which reflects macroeconomic conditions that are getting worse since the near start of 2025. Such conditions include geopolitical uncertainty, tariffs and sanctions policy volatility. Thus, while we consider that the export price index of gold is a reflection of supply and demand for a physical commodity, we find that it serves as a lens through which a period of shifting investor sentiment, monetary policy and geopolitical risk could be examined. (Refer to "Gold Price & Investment Outlook: 2026 & Beyond" for more information).
+
+The plot reveals a clear long run upward trend with the rate of growth increasing as the years go on. We can determine that this sort of increase in the export price index is exponential and not linear which may meddle with the sort of forecasting methods we decide to use later on in this assignment. 
+
+Examining this exponential plot, we will start off with the relatively flat baseline plotted during the early window of this series. During the first three years of the series (2016 Q1 - 2029 Q1), the index has been subdued at levels around 85 - 100. According to a 2017 article published by the Motley Fool, we find that by the end of 2016, gold had been priced at more than $200 an ounce below its mid year highs which was then further weighed down by the Federal Reserve's December rate hike. Then according to a 2018 article published by the World Gold Council, gold volatility in 2017 had reached its lowest since 1996, with one month of moves exceeding 5%. This was driven by uneventful geopolitical situations, improved economic conditions and an ease on the political uncertainty. With equity markets performing strongly and interest rates increasing, the opportunity cost of holding onto gold that time was high which is why the early window is set close to the baseline.
+
+Setting our focus towards the noticeable bump spotted early 2020 to 2021, we find that a peak at the third quarter of 2020 is found between those two years with a price index of precisely 145.7. The period of which the bump was spotted is well-known for the COVID-19 pandemic  which has sparked economic uncertainty globally. As previously discussed, economic and political uncertainty drives the increasing price of gold which appears to be the case here which can be further reinforced by a 2025 article published by 'Econofact' which discusses about the sharp increase in gold prices for Australia during the last few decades. We may also find that the leading cause of the peak during the third quarter of 2020 is likely due to huge fiscal stimulus packages, near zero interest rates and a flight to safe-haven assets all converging during the spring season of 2020.
+
+Then finally, looking at the near-vertical ascent during the recent years (2024 Q1 to be specific). According to a 2026 article published by FXopen, it quotes that "gold had experienced a remarkable surge in 2024 which reflects the strong geopolitical tensions and economic uncertainty surrounding the US presidential election and strong demand from emerging market central banks. By mid-December 2024, gold prices had climbed more than 30%". As we go on from the beginning of 2024, we find that it only got steeper where "gold demands had risen to 10% in the first 3 quarters of 2025, led by strong investment inflows including from gold-backed ETFs and continued central bank purchases" according to a 2025 article published by World Bank Blogs. This serves to provide a reason for the sharp increase since 2024 and it reveals the deterioration of the macroeconomic conditions that have been showing up in this world lately.
+
+##Part 2 investigation: What are possible predictors of gold
+
+The following information is directly obtained from the World Gold Council
+```{r}
+library(readxl)
+library(writexl)
+
+wgc <- read_excel("WGC-updated.xlsx")
+
+wgc <- wgc |>
+  pivot_longer(
+    cols = starts_with("Q"),
+    names_to = "quarters",
+    values_to = "values"
+  )
+
+wgc <- wgc |>
+  pivot_wider(
+    names_from = "...1",
+    values_from = "values"
+  )
+
+#pred_set1 <- wgc |>
+#  select("quarters", "Total Supply", "Central Bank and Other Institutions", "Jewellery Consumption", "Investment")
+
+#write_xlsx(pred_set1, "predset1.xlsx")
+```
+
+```{r}
+#Total supply, Central Banks, jewellery consumption and Investment
+predSet1 <- read_excel("predset1.xlsx")
+```
+
+The following information is obtained from the ABS
+
+```{r}
+predSet2 <- read_excel("predset2.xlsx")
+colnames(predSet2)
+predSet2 <- predSet2 |>
+  rename("quarters" = "...1", "CPI" = "Index Numbers ;  All groups CPI ;  Australia ;", "CPIPD" = "Percentage Change from Previous Period ;  All groups CPI ;  Australia ;") 
+```
+
+```{r}
+combPreds <- left_join(predSet1, predSet2, by = "quarters")
+combPreds <- combPreds |> mutate(quarters = yearquarter(quarters))
+gold_series <- gold_series |> rename("quarters" = "Quarter")
+studySet <- left_join(gold_series, combPreds, by = "quarters")
+studySet <- studySet |> relocate(quarters)
+```
+
+
+- Central bank
+- jewellery demand
+- Inflation
+- Supply
+- Investment
+
+##Testing predictors
+
+When determining the correct predictors for further study - we will use a range of tests:
+- Correlation matrix
+- CCF
+- AIC
+- Cross Validation
+
+```{r}
+library(corrplot)
+predTestSet <- studySet |> 
+  select(where(is.numeric))
+predTestSet$quarters <- NULL
+predTestSet$CPI <- NULL
+
+studySetTrain <- studySet |>
+  filter_index(.~"2024 Q4")
+
+# predTestSet <- predTestSet |>
+#   rename(GPI = value, 'CB+' = 'Central Bank and Other Institutions')
+```
+
+
+Correlation Matrix reveals that Inflation has a noticeably high correlation to the gold price index
+```{r}
+corrplot(cor(predTestSet, use = "complete.obs"), method = "color", addCoef.col = "black")
+```
+
+Temporarily we will use a time series linear model with all the predictors to check for the AIC and Cross Validation.
+We find that the AIC and CV for the model without the central bank variable and the jewellery consumption variable have a considerably high AIC and CV. This means that the AIC's induced more penalty into the scoring of these models revealing that these variables are strong predictors of the gold export price index.
+```{r}
+studySetTrain <- studySetTrain |>
+  rename(
+    TS = 'Total Supply',
+    CB = 'Central Bank and Other Institutions',
+    JC = 'Jewellery Consumption',
+    IV = 'Investment'
+  )
+colnames(studySetTrain)
+
+
+studySetFit <- studySetTrain |>
+  model(
+    all = TSLM(value ~ TS + CB + JC + IV + CPIPD),
+    noTS = TSLM(value ~ CB + JC + IV + CPIPD),
+    noCB = TSLM(value ~ TS + JC + IV + CPIPD),
+    noJC = TSLM(value ~ TS + CB + IV + CPIPD),
+    noIV = TSLM(value ~ TS + CB + JC + CPIPD),
+    noCPI = TSLM(value ~ TS + CB + JC + IV)
+  )
+
+glance(studySetFit) |>
+  select(.model, AIC, CV)
+```
+
+For the last test, we will be using a cross correlation function
+
+```{r}
+studySet <- studySet |> as_tsibble(index = quarters)
+studySet$series <- NULL
+studySet$date <- NULL
+
+# studySet <- studySet |>
+#   rename(
+#     TS = 'Total Supply',
+#     CB = 'Central Bank and Other Institutions',
+#     JC = 'Jewellery Consumption',
+#     IV = 'Investment'
+#   )
+
+studySet 
+
+studySet |>
+  CCF(value, TS) |>
+  autoplot() +
+  labs(
+    title = 'Total supply'
+  )
+studySet |>
+  CCF(value, CB) |>
+  autoplot() +
+  labs(
+    title = 'Central banks'
+  )
+
+studySet |>
+  CCF(value, JC) |>
+  autoplot() +
+  labs(
+    title = 'Jewellery consumption'
+  )
+
+studySet |>
+  CCF(value, IV) |>
+  autoplot() +
+  labs(
+    title = 'Investment'
+  )
+
+studySet |>
+  CCF(value, CPIPD) |>
+  autoplot() +
+  labs(
+    title = 'Inflation'
+  )
+```
+Given all these tests - it is reasonable to go with jewellery, total supply and central banks
+
+
+## Forecasting methodology
+
+We will be utilising 3 dummy variables to determine whether the effects I listed in the investigation had an actual effect on the gold prices.
+
+Dummy 1 will regard the fact: 'The period of which the bump was spotted is well-known for the COVID-19 pandemic  which has sparked economic uncertainty globally.'
+
+Dummy 2 will regard the fact: 'According to a 2026 article published by FXopen, it quotes that "gold had experienced a remarkable surge in 2024 which reflects the strong geopolitical tensions and economic uncertainty surrounding the US presidential election and strong demand from emerging market central banks. By mid-December 2024, gold prices had climbed more than 30%".'
+
+To determine the effect:
+The covid dummy will be in effect between 2019 Q4 to 2022 Q1
+The tension dummy will be in effect between 2024 Q2 to 2025 Q1
+
+```{r}
+gold_series_dum <- gold_series |>
+  mutate(
+    covid = ifelse(quarters >= yearquarter("2019 Q4") & quarters <= yearquarter("2022 Q1"), 1, 0),
+    higher_tension = ifelse(quarters >= yearquarter("2024 Q2") & quarters <= yearquarter("2025 Q1"), 1, 0)
+  )
+
+
+
+gold_series_dum |>
+  filter_index(.~"2024 Q4")
+
+
+```
+
+##Preparation
+
+The exponential-like trend in Figure 1 reveals an increase in variance, so a transformation may be required depending on the forecasting model of choice as there exists models that are built to handle the plot's structure without a transformation. In the case that a transformation is required, we will utilise Guerrero's method to determine a suitable transformation.
+
+```{r}
+lambda <- gold_series |>
+  features(value, features = guerrero) |>
+  pull(lambda_guerrero)
+
+gold_series |>
+  autoplot(box_cox(value, lambda)) +
+  labs(
+    title = "Figure 3. Transformed time series plot of the export price index \n(lambda ~ -0.9)",
+    y = "Price index (approx. inverse transformed)",
+    x = "Quarter"
+  )
+
+```
+
+To prepare the series for forecasting, we will use a train-test split with cross validation as it is most notably flexible given that our data is not too large. To determine the suitable preparation methods, we will use the root mean squared error (RMSE), the mean absolute deviation (MAD) and the mean absolute percentage error as a core basis of comparison after fitting it to a model. 
+
+For the train-test split section, we will use a training set that holds the price index ranging from 2016 Q1 to 2021 Q4; the test set will hold the remaining portion of the data.
+
+```{r}
+gold_train <- gold_series |>
+  filter_index(.~"2021 Q4")
+gold_test <- gold_series |>
+  filter_index("2022 Q1" ~.)
+```
+
+
+For the cross-validation section, we will begin on an initial time length of 2 quarters and take single steps when validation is successful.
+
+
+```{r}
+studySetTrain <- studySetTrain |>
+  mutate(
+    covid = ifelse(quarters >= yearquarter("2019 Q4") & quarters <= yearquarter("2022 Q1"), 1, 0),
+    higher_tension = ifelse(quarters >= yearquarter("2024 Q2") & quarters <= yearquarter("2025 Q1"), 1, 0)
+  )
+
+studySetTrainCV <- studySetTrain |>
+  stretch_tsibble(.init = 2, .step = 1) 
+
+```
+
+
+We will then be using the following forecasting methods:
+1. An ARIMA model with 2 Fourier pairs, 1 dummy and a predictor
+2. An ARIMA model with 2 Fourier pairs, 1 dummy and 2 predictors
+3. A TSLM model with 2 predictors and 1 dummy
+4. An automaically selected ETS model
+
+```{r}
+## add total supply later
+model_list <- studySetTrainCV |>
+  model(
+    arima_211_JC_CO = ARIMA(value ~ trend() + fourier(K = 2) + covid + JC),
+    arima_211_CB_CO = ARIMA(value ~ trend() + fourier(K = 2) + covid + CB),
+    arima_211_TS_CO = ARIMA(value ~ trend() + fourier(K = 2) + covid + TS),
+    arima_211_JC_HT = ARIMA(value ~ trend() + fourier(K = 2) + higher_tension + JC),
+    arima_211_CB_HT = ARIMA(value ~ trend() + fourier(K = 2) + higher_tension + CB),
+    arima_211_TS_HT = ARIMA(value ~ trend() + fourier(K = 2) + higher_tension + TS),
+    arima_122_C1 = ARIMA(value ~ trend() + fourier(K = 1) + covid + higher_tension + JC + CB),
+    arima_122_C2 = ARIMA(value ~ trend() + fourier(K = 1) + covid + higher_tension + JC + TS),
+    tslm_22 = TSLM(value ~ covid + JC + CB),
+    ets = ETS(value)
+  )
+
+augmented_model_list <-augment(model_list)
+
+unique(augmented_model_list$.model)
+```
+
+## Screening
+This is where we experiment with a lot of models to see how they do - cross validated data is good for the screening component before we get to actual training
+
+```{r}
+augmented_model_list |>
+  filter(.model == "arima_211_JC_CO") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "blue") +
+  labs(
+    title = "Fig A. ARIMA | 2 Fourier pair | CO | JC"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_211_CB_CO") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "red") +
+  labs(
+    title = "Fig B.  ARIMA | 2 Fourier pair | CO | CB"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_211_TS_CO") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "green") +
+  labs(
+    title = "Fig C.  ARIMA | 2 Fourier pair | CO | TS"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_211_JC_HT") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "blue") +
+  labs(
+    title = " ARIMA | 2 Fourier pair | HT | JC"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_211_CB_HT") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "red") +
+  labs(
+    title = "Fig E.  ARIMA | 2 Fourier pair | CO | CB"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_211_TS_HT") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "green") +
+  labs(
+    title = "Fig F.  ARIMA | 2 Fourier pair | CO | TS"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_122_C1") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "magenta") +
+  labs(
+    title = "Fig G.  ARIMA | 2 Fourier pair | CO + HT | JC + CB"
+  )
+
+augmented_model_list |>
+  filter(.model == "arima_122_C2") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "gold") +
+  labs(
+    title = "Fig H.  ARIMA | 2 Fourier pair | CO + HT | JC + TS"
+  )
+
+augmented_model_list |>
+  filter(.model == "tslm_22") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "turquoise") +
+  labs(
+    title = "Fig I.  ARIMA | CO + HT | JC + CB"
+  )
+
+augmented_model_list |>
+  filter(.model == "ets") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "purple") +
+  labs(
+    title = "Fig J. ETS auto"
+  )
+
+
+```
+Promising selections via visualising: 
+- Figure A
+- Figure E
+- Figure G
+
+
+## Training Performance
+we'll put it against actual training data and see how it goes
+```{r}
+true_model_list <- studySetTrain |>
+  model(
+    modelA = ARIMA(value ~ trend() + fourier(K = 2) + covid + higher_tension + JC),
+    modelE = ARIMA(value ~ trend() + fourier(K = 2) + higher_tension + CB),
+    modelG = ARIMA(value ~ trend() + fourier(K = 1) + covid + higher_tension + JC + CB),
+  )
+
+augment(true_model_list) |>
+  filter(.model == "modelA") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "purple") +
+  labs(
+    title = "Model A"
+  )
+
+augment(true_model_list) |>
+  filter(.model == "modelE") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "turquoise") +
+  labs(
+    title = "Model E"
+  )
+
+augment(true_model_list) |>
+  filter(.model == "modelG") |>
+  ggplot(aes(x = quarters)) +
+  geom_line(aes(y = value)) +
+  geom_line(aes(y = .fitted), colour = "blue") +
+  labs(
+    title = "Model G"
+  )
+
+glance(true_model_list) |>
+  select(.model, AIC, BIC, AICc) 
+
+true_model_list |>
+  select(modelA) |>
+  report()
+
+true_model_list |>
+  select(modelE) |>
+  report()
+
+true_model_list |>
+  select(modelG) |>
+  report()
+```
+
+## Residuals
+we'll analyse residuals to verify further
+```{r}
+true_model_list |>
+  select(modelA) |>
+  gg_tsresiduals()
+
+```
+The residuals look pretty good
+
+## Forecasting
+
+```{r}
+fc_model <- true_model_list |> select(modelA)
+
+studySetTest <- studySet |>
+  filter_index("2025 Q1" ~.)
+
+studySetTest <- studySetTest |>
+  mutate(
+    covid = ifelse(quarters >= yearquarter("2019 Q4") & quarters <= yearquarter("2022 Q1"), 1, 0),
+    higher_tension = ifelse(quarters >= yearquarter("2024 Q2") & quarters <= yearquarter("2025 Q1"), 1, 0)
+  )
+
+
+
+test_trial <- fc_model |>
+  forecast(new_data = studySetTest)
+
+test_trial |>
+  autoplot(studySet) +
+  autolayer(test_trial, value, colour = "turquoise") +
+  labs(
+    title ="model A"
+  )
+```
+
+
+##Signalling
+
+```{r}
+adjust_series <- function(col) {
+  studySet |>
+    model(stl = STL({{ col }})) |>
+    components() |>
+    pull(season_adjust)
+}
+
+studySet |>
+  mutate(
+    value_adj = adjust_series(value),
+    JC_adj = adjust_series(JC),
+    CB_adj = adjust_series(CB)
+  ) |>
+  pivot_longer(cols = c(value_adj, JC_adj, CB_adj),
+               names_to = "variable",
+               values_to = "amount") |>
+  ggplot(aes(x = quarters, y = amount)) +
+  geom_line() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  labs(title = "Seasonally Adjusted Gold Export Price, JC and CB")
+```
+
+
+References
+- Caplinger, D. (2017) Why the price of gold in 2016 disappointed precious-metals bulls, The Motley Fool. Available at: https://www.fool.com/investing/2017/01/04/why-the-price-of-gold-in-2016-disappointed-preciou.aspx (Accessed: 19 March 2026). 
+- FXOpen (2026) Analytical gold price forecasts for 2026-2030, Market Pulse. Available at: https://fxopen.com/blog/en/analytical-gold-price-predictions-for-2026-2027-and-beyond/ (Accessed: 19 March 2026). 
+- Gold Price & Investment Outlook: 2026 & beyond (2026) VanEck. Available at: https://www.vaneck.com/us/en/blogs/gold-investing/gold-investing-outlook/ (Accessed: 19 March 2026). 
+- Team, T. (2024) Gold price chart over the past 10 years: Tradingmoon, tradingmoon.com. Available at: https://tradingmoon.com/row/en/blog/commodities-trading/gold-price-chart-over-the-past-10-years/ (Accessed: 19 March 2026). 
+- Temaj, K. and Khadan, J. (2025) When uncertainty rises, gold rallies: Precious Metals Surge to record highs amid global tensions, World Bank Blogs. Available at: https://blogs.worldbank.org/en/opendata/when-uncertainty-rises--gold-rallies (Accessed: 19 March 2026). 
+- Turner, M. (2018) Where has the volatility gone?, World Gold Council. Available at: https://www.gold.org/goldhub/research/gold-investor/gold-investor-july-2018/13228 (Accessed: 19 March 2026).
